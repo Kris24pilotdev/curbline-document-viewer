@@ -1,6 +1,13 @@
 import "dotenv/config"; // loads .env.local locally
 import fetch from "node-fetch";
 
+function normalizeSiteName(siteName) {
+  return String(siteName || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "_");
+}
+
 async function getAccessToken() {
   const params = new URLSearchParams();
   params.append("client_id", process.env.CLIENT_ID);
@@ -14,19 +21,46 @@ async function getAccessToken() {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
-    }
+    },
   );
 
   const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(`Token error ${res.status}: ${JSON.stringify(data)}`);
+  }
+
+  if (!data.access_token) {
+    throw new Error(`No access_token in response: ${JSON.stringify(data)}`);
+  }
+
   return data.access_token;
 }
 
 export default async function handler(req, res) {
-  const { siteId, itemId } = req.query;
+  const { siteName, itemId } = req.query;
 
-  if (!siteId || !itemId) {
-    return res.status(400).send("Missing siteId or itemId");
+  if (!siteName || !itemId) {
+    return res.status(400).send("Missing siteName or itemId");
   }
+
+  const tenantHostName = process.env.TENANT_HOST_NAME;
+  if (!tenantHostName) {
+    return res
+      .status(500)
+      .send("Server misconfiguration: missing TENANT_HOST_NAME");
+  }
+
+  const envKey = `SITE_${normalizeSiteName(siteName)}`; // example: SITE_PROPERTIES
+  const siteWebIds = process.env[envKey];
+
+  if (!siteWebIds) {
+    return res
+      .status(400)
+      .send(`Unknown siteName. No env var found for ${envKey}`);
+  }
+
+  const siteId = `${tenantHostName},${siteWebIds}`;
 
   try {
     const token = await getAccessToken();
@@ -35,7 +69,7 @@ export default async function handler(req, res) {
       `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${itemId}/content`,
       {
         headers: { Authorization: `Bearer ${token}` },
-      }
+      },
     );
 
     if (!graphRes.ok) {

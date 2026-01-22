@@ -2,20 +2,31 @@ import { useEffect, useState } from "react";
 
 function App() {
   const [url, setUrl] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const siteId =
-      "pilotdev.sharepoint.com,248c421a-3466-4ede-82fd-682233342d1f,8fcd03e1-dcc2-4f8c-817c-a7fee27f1d3c";
-    const itemId = "755d51a7-1f9c-4307-845f-1d0f230d6c21";
+    const params = new URLSearchParams(window.location.search);
 
-    alert("hello world");
+    const siteName = params.get("siteName");
+    const itemId = params.get("itemId");
+
+    if (!siteName || !itemId) {
+      setError("Missing siteName or itemId in URL");
+      return;
+    }
 
     setUrl(
-      `/api/documents?siteId=${encodeURIComponent(siteId)}&itemId=${itemId}`,
+      `/api/documents?siteName=${encodeURIComponent(siteName)}&itemId=${encodeURIComponent(itemId)}`,
     );
   }, []);
 
-  if (!url) return <div>Loading…</div>;
+  if (error) {
+    return <div style={{ padding: 16, color: "red" }}>{error}</div>;
+  }
+
+  if (!url) {
+    return <div>Loading…</div>;
+  }
 
   return (
     <iframe
